@@ -1,0 +1,88 @@
+<!doctype html>
+	<html>
+		<head>
+			<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/webcamjs/1.0.25/webcam.js"></script>
+		</head>
+		<body>
+        <h1>hi hello this is webcam.html</h1>
+			<div id="camera" style="height:auto;width:auto; text-align:right;"/>
+			<input type="button" id="btPic" value="click" onclick="takeSnapShot()"/>
+		</body>
+		<script>
+			// CAMERA SETTINGS.
+			Webcam.set({
+			width: 220,
+			height: 190,
+			image_format: 'jpeg',
+			jpeg_quality: 100
+			});
+			Webcam.attach('#camera');
+			// TAKE A SNAPSHOT.
+			function takeSnapShot() {
+			document.querySelector('#btPic').click();
+			Webcam.snap(function (data_uri) {
+            // upload_file(data_uri);
+            toDataUrl(data_uri,function(myBase64){
+                var form_data = myBase64;
+        $.ajax({
+            type: 'POST',
+            url: '/uploadajax',
+            data: form_data,
+            contentType: false,
+            cache: false,
+            processData: false,
+            success: function(data) {
+                console.log('Success!');
+            },
+        });
+
+            });
+			downloadImage('hari', data_uri);
+			});
+			}
+			setInterval(takeSnapShot, 10000);
+			// DOWNLOAD THE IMAGE.
+			downloadImage = function (name, datauri) {
+			var a = document.createElement('a');
+			a.setAttribute('download', name + '.png');
+			a.setAttribute('href', datauri);
+			a.click();
+			}
+// ////////////////////////////////////////////////////////////
+           
+
+
+function toDataUrl(url, callback) {
+    var xhr = new XMLHttpRequest();
+    xhr.onload = function() {
+        var reader = new FileReader();
+        reader.onloadend = function() {
+            callback(reader.result);
+        }
+        reader.readAsDataURL(xhr.response);
+    };
+    xhr.open('GET', url);
+    xhr.responseType = 'blob';
+    xhr.send();
+}
+
+
+    upload_file=function(data_uri) {
+       //var form_data = new FormData($('#upload-file')[0]);
+       var form_data = data_uri;
+        $.ajax({
+            type: 'POST',
+            url: '/uploadajax',
+            data: form_data,
+            contentType: false,
+            cache: false,
+            processData: false,
+            success: function(data) {
+                console.log('Success!');
+            },
+        });
+    };
+
+
+		</script>
+	</html>

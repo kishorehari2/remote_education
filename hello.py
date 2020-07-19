@@ -1,88 +1,94 @@
+from base64 import b64encode
+from flask import Flask, render_template, request, make_response
 from cloudant import Cloudant
-from flask import Flask, render_template, request, jsonify
-import atexit
+
 import os
-import json
 
-app = Flask(__name__, static_url_path='')
 
-db_name = 'mydb'
-client = None
-db = None
+USERNAME = '7b942421-2d60-4974-b8a6-6e43cf6e5a9a-bluemix'
+PASSWORD = 'd5e563ae558c8f5b045d46de05864e58fbde34d442b65239eaffc3da64983411'
+URL = 'https://7b942421-2d60-4974-b8a6-6e43cf6e5a9a-bluemix:d5e563ae558c8f5b045d46de05864e58fbde34d442b65239eaffc3da64983411@7b942421-2d60-4974-b8a6-6e43cf6e5a9a-bluemix.cloudantnosqldb.appdomain.cloud'
 
-if 'VCAP_SERVICES' in os.environ:
-    vcap = json.loads(os.getenv('VCAP_SERVICES'))
-    print('Found VCAP_SERVICES')
-    if 'cloudantNoSQLDB' in vcap:
-        creds = vcap['cloudantNoSQLDB'][0]['credentials']
-        user = creds['username']
-        password = creds['password']
-        url = 'https://' + creds['host']
-        client = Cloudant(user, password, url=url, connect=True)
-        db = client.create_database(db_name, throw_on_exists=False)
-elif "CLOUDANT_URL" in os.environ:
-    client = Cloudant(os.environ['CLOUDANT_USERNAME'], os.environ['CLOUDANT_PASSWORD'], url=os.environ['CLOUDANT_URL'], connect=True)
-    db = client.create_database(db_name, throw_on_exists=False)
-elif os.path.isfile('vcap-local.json'):
-    with open('vcap-local.json') as f:
-        vcap = json.load(f)
-        print('Found local VCAP_SERVICES')
-        creds = vcap['services']['cloudantNoSQLDB'][0]['credentials']
-        user = creds['username']
-        password = creds['password']
-        url = 'https://' + creds['host']
-        client = Cloudant(user, password, url=url, connect=True)
-        db = client.create_database(db_name, throw_on_exists=False)
 
-# On IBM Cloud Cloud Foundry, get the port number from the environment variable PORT
-# When running this app on the local machine, default the port to 8000
-port = int(os.getenv('PORT', 8000))
+client = Cloudant(USERNAME, PASSWORD, url=URL)
+# Connect to the account
+client.connect()
+
+
+my_database = client['image']
+
+app = Flask(__name__)
+
+APP_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+
+# @app.route('/')
+# def student():
+#     return render_template('student.html')
+
 
 @app.route('/')
-def root():
-    return app.send_static_file('index.html')
+def student():
+    return render_template('webcam.html')
 
-# /* Endpoint to greet and add a new visitor to database.
-# * Send a POST request to localhost:8000/api/visitors with body
-# * {
-# *     "name": "Bob"
-# * }
-# */
-@app.route('/api/visitors', methods=['GET'])
-def get_visitor():
-    if client:
-        return jsonify(list(map(lambda doc: doc['name'], db)))
-    else:
-        print('No database')
-        return jsonify([])
 
-# /**
-#  * Endpoint to get a JSON array of all the visitors in the database
-#  * REST API example:
-#  * <code>
-#  * GET http://localhost:8000/api/visitors
-#  * </code>
-#  *
-#  * Response:
-#  * [ "Bob", "Jane" ]
-#  * @return An array of all the visitor names
-#  */
-@app.route('/api/visitors', methods=['POST'])
-def put_visitor():
-    user = request.json['name']
-    data = {'name':user}
-    if client:
-        my_document = db.create_document(data)
-        data['_id'] = my_document['_id']
-        return jsonify(data)
-    else:
-        print('No database')
-        return jsonify(data)
+@app.route('/result', methods=['POST', 'GET'])
+def result():
+    print("after result")
+    if request.method == 'POST':
+        results = request.form
+    return render_template("result.html", result=results)
 
-@atexit.register
-def shutdown():
-    if client:
-        client.disconnect()
+
+@app.route('/up', methods=['POST', 'GET'])
+def upload():
+    print("hikhfsk")
+    file = request.files['file']
+    file_name = file.filename
+    uploaded_file_content = b64encode(file.read())
+    # print(uploaded_file_content)
+    # for document in my_database:
+        # uploaded_file_content.decode('ascii')
+    data = {'file_name': file_name, '_attachments': {file_name : {'data': uploaded_file_content.decode('ascii')}}}
+    # data = {file_name : {'data': uploaded_file_content.decode('ascii')}}
+        # data = {"data": "hgfghgfg"}
+        # data={"id": "jgfsdahgfasdjajf"}
+    doc = my_database.create_document(data)
+    print(uploaded_file_content)
+    if request.method == 'POST':
+        results = request.form
+        return render_template("result.html", result=results)
+
+
+@app.route('/download', methods=['POST'])
+def download():
+	file_name = request.form['filename']
+	for document in my_database:
+		if (document['file_name'] == file_name):
+			file = document.get_attachment(file_name, attachment_type='binary')
+			response = make_response(file)
+			response.headers['Content-Disposition'] = 'attachment; filename=%s'%file_name
+			return response
+		else:
+			response = 'File not found'
+	return response
+
+
+
+@app.route('/uploadajax', methods = ['POST'])
+def upldfile():
+    if request.method == 'POST':
+        file_val = request.get_data()
+        file_name="hat.jpg"
+        # uploaded_file_content = b64encode(file_val.read())
+        data = {'file_name': file_name, '_attachments': {file_name : {'data': file_val.decode('ascii')}}}
+        doc = my_database.create_document(data)
+        print(file_val)
+        return render_template('student.html')
+
+
+
+
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(port=8000, debug=True)  
